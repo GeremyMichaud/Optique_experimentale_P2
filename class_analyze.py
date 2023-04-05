@@ -15,7 +15,7 @@
 # ## Préliminaires
 # Cette section sert à <ins>importer</ins> les modules nécessaires et à <ins>créer des fonctions</ins> utiles pour l'entièté du PE.
 
-# In[14]:
+# In[48]:
 
 
 # !pip install --upgrade pip
@@ -26,7 +26,7 @@
 # !pip install opencv-python
 
 
-# In[15]:
+# In[49]:
 
 
 # -*- coding: utf-8 -*-
@@ -53,36 +53,50 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 
 
-# ## Classe Calibration
+# ## Classes d'étalonnage et de traitement des données
 
-# In[16]:
+# ### Classe Calibration
+# En périphérie de la classe, nous définissons des fonctions de conversion qui seront utilisés à l'intérieur de la classe. 
+
+# In[50]:
 
 
-def nm2raman(x):  # pour passer de nanomètres à raman shift
+def nm2raman(x):
+    """Fonction pour passer des nanomètres aux données de shift Raman.
+
+    Args:
+        x (any): Variables à convertir.
+
+    Returns:
+        function: Équation de nm à raman shift.
+    """
     return 1 / 632.8e-7 - 1 / (x * 1e-7)
 
 def raman2nm(x):
+    """Fonction pour passer des données de shift Raman aux nanomètres.
+
+    Args:
+        x (any): Variables à convertir.
+
+    Returns:
+        function: Équation de raman shift à nm._
+    """
     return 632.8 / (1 - 632.8 * x * 10-7)
 
 
-# In[17]:
+# In[54]:
 
 
 class Calibration:
+    """Classe d'étalonnage où nous utilisons les échantillons étalons (éthanol et eau).
+
+    Returns:
+        classmethod: graphique_combine_ethanolage
     """
-    Classe pour l'étalonnage. À mettre dans cette classe les échantillons d'éthanol et d'eau servant à l'étalonnage.
-    """
-    ethanolage = {}  # Dictionnaire où seront placées les valeurs de concentration, de hauteur du pic, de position du pic et d'écart-type
-    y_0 = []  # Spectre de l'eau
-    
-    pxt = [205.13, 220.127, 471.889, 730.384, 1210]  # calibration trait
-    nmt = [709, 708, 690, 671, 632.8]  # calibration trait
-    
-    px = [208, 222, 472, 731] # calibration Babe
-    nm = [709.186, 708.19, 690.753, 671.643] # calibration Babe
 
     def __init__(self, fichier, nom, zero=False, conc=0, d=7, coupe = [1, -1], s=",", max_c=290, divismin = 1, max_p=290, pente = False, domaine_pic = [1050, 1100], Eau=True, graph=False, rawdog = False, balance=1):
         """
+        String défini par défaut avec une virgule.
         Initialisation de la classe, fait toute la job en fonction des paramètre ce qui est un peu wack pk tu fait des fonctions à part trait si tu t'en sert pas
                                                                                                                                                                 -Babe
         :param fichier: str, le nom du fichier où aller chercher les données.
@@ -103,7 +117,15 @@ class Calibration:
         :param balance: float, facteur qui blance les données si elle n'ont pas tous le même temps d'acquisition.
         :return: rien c'est un init
         """
-        self.nom=nom
+        # Données de calibration en fonction des pic de la lampe au Mercure
+        self.calibration_Hg = {206:709.186, 221:708.19, 473:690.753, 730:671.643}
+        self.pixels = [206, 221, 473, 730]
+        self.nanometer = [709.186, 708.190, 690.753, 671.643]
+        # Initiliasation du dictionnaire des valeurs de concentration, de hauteur du pic, de position du pic et d'écart-type
+        self.ethanol = {}
+        # Initialisation du spectre de l'eau
+        self.y_0 = []
+        self.nom= nom
         self.d = d
         self.max_p = max_p
         self.pente = pente
@@ -115,7 +137,8 @@ class Calibration:
         self.divismin = divismin
         
         #ajuste l'axe des x selon la calibration
-        slope, intercept, r_value, p_value, std_err = linregress(Calibration.px, Calibration.nm)
+        slope, intercept, rvalue, pvalue, stderr = linregress(self.pixels, self.nanometer)
+        #slope, intercept, rvalue, pvalue, stderr = linregress(list(self.calibration_Hg.keys()), list(self.calibration_Hg.values()))
         x_new = np.array(range(1339))
         nm = x_new * slope + intercept
         # Transforme les x en cm-1.
@@ -151,7 +174,7 @@ class Calibration:
             plt.yticks(fontsize= 12)
             plt.show()
         
-        if zero: Calibration.ethanolage[self.nom] = [0, 0, 0, 50, 0, 0, [0, 1]] 
+        if zero: self.ethanol[self.nom] = [0, 0, 0, 50, 0, 0, [0, 1]] 
         else:
             #soustrait la fluorescence.
             self.enlever_bruit(max_c=self.max_c, max_p=self.max_p, divismin = self.divismin)
@@ -172,12 +195,12 @@ class Calibration:
         :return: np.array, Le spectre corrigé après le retrait de l'eau.
         """
         if self.zero:
-            Calibration.y_0 = self.raw_y
+            self.y_0 = self.raw_y
             self.y_corrige_eau = self.raw_y
-        elif len(Calibration.y_0) == 0:
+        elif len(self.y_0) == 0:
             self.y_corrige_eau = self.raw_y
         else:
-            self.y_corrige_eau = self.raw_y - Calibration.y_0
+            self.y_corrige_eau = self.raw_y - self.y_0
         return self.y_corrige_eau
 
     def enlever_bruit(self, max_c=290, divismin = 1, max_p=290):
@@ -245,12 +268,13 @@ class Calibration:
         return self.y_corrige_bruit
 
     def pic_max(self):
-        """
+        """"
         Trouve la hauteur du pic dans la plage donnée et sa position. Crée une entrée de dictionnaire de concentration
         avec comme clé le nom spécifié lors de l'initialisation. Cette entrée est une liste contenant la concentration,
         la hauteur du pic, sa position,  l'incertitude, les données en x, les données en y et l'intervale de recherche pour le pic max .
 
-        :return: list(self.x_max, self.peakmax): La position et la hauteur du pic maximal
+        Returns:
+            list: La position et la hauteur du pic maxima
         """
         where_peaks_raman = self.x_raman[self.peaks_raman][::-1]
         ind_pic = []
@@ -266,7 +290,7 @@ class Calibration:
         self.valeurbruit = self.y_corrige_bruit[list(np.array(self.bons_y_ind[1+self.d:-1-self.d])-1-self.d)]
         # calcule de l'incertitude par l'écart type
         ecart = 3*np.std(self.valeurbruit)
-        Calibration.ethanolage[self.nom] = list(np.array([self.conc, self.peakmax, self.x_max, ecart, self.x_raman, self.y_corrige_bruit, np.array(self.domaine_pic)*self.balance], dtype=object)/self.balance)
+        self.ethanol[self.nom] = list(np.array([self.conc, self.peakmax, self.x_max, ecart, self.x_raman, self.y_corrige_bruit, np.array(self.domaine_pic)*self.balance], dtype=object)/self.balance)
         return [self.x_max, self.peakmax]
 
     def graphique_selection(self):
@@ -353,8 +377,8 @@ class Calibration:
         
         plt.show()
         
-    @classmethod
-    def graphique_combiné_ethanolage(cls):
+    @classmethod # La méthode d'instance est appelée directement avec la classe comme premier argument.
+    def graphique_combine_ethanolage(cls):
         """
         Fouille dans dictionaire de l'étalonge pour faire un beau graphique de comparaison pour le rapport de lab.
         """
@@ -363,7 +387,7 @@ class Calibration:
         concentrations = [7, 10, 23, 35, 48, 54, 62, 69, 0][::-1]
         plt.figure(figsize=(10, 6), dpi = 100)
         plt.rcParams.update({"font.size":15})
-        for couple in Calibration.ethanolage.values():
+        for couple in Calibration.ethanol.values():
             if i ==0 :
                 i+=1
             else:
@@ -373,6 +397,7 @@ class Calibration:
         plt.tick_params(direction="in")
         plt.xlim(800, 1750)
         plt.ylim(-1500, 19000)
+        # Mettre les pics d'éthanol
         plt.axvline(1450, c="red")
         plt.axvline(1063, c="red")
         plt.axvline(1125, c="red")
@@ -389,10 +414,10 @@ class Calibration:
         plt.show()
 
 
-# ## Classe Samples
+# ### Classe Samples
 # Permet de prendre en compte l'échantillonage
 
-# In[18]:
+# In[52]:
 
 
 def linear_eq(x, slope, intercept):
@@ -409,7 +434,7 @@ def linear_eq(x, slope, intercept):
     return slope * x + intercept
 
 
-# In[19]:
+# In[53]:
 
 
 class Samples(Calibration):
@@ -462,8 +487,8 @@ class Samples(Calibration):
         liste_erreur = []
         domaine_pic = ['mauvaise calibration dans fonction analyse', 'fuck you regle le problème']
         # On trace les points de données (concentration, hauteur du pic)
-        # couple dénote simplement les données du dictionnaire "ethanolage", soit [conc, hauteur_pic, pos_pic, incert, donné en x, donné en y, intervale pour le pic]
-        for couple in super().ethanolage.values():
+        # couple dénote simplement les données du dictionnaire "ethanol", soit [conc, hauteur_pic, pos_pic, incert, donné en x, donné en y, intervale pour le pic]
+        for couple in super().ethanol.values():
             print(couple)
             if couple[1] == 0:
                 liste_x.append(0)
@@ -542,7 +567,7 @@ class Samples(Calibration):
         domaine_pic = ['mauvaise calibration dans fonction analyse', 'fuck you regle le problème']
         # On trace les points de données (concentration, hauteur du pic)
         
-        for couple in super().ethanolage.values(): 
+        for couple in super().ethanol.values(): 
             if couple[1] == 0:
                 liste_x.append(0)
                 liste_erreur.append(200)
