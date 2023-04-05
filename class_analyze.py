@@ -15,7 +15,7 @@
 # ## Préliminaires
 # Cette section sert à <ins>importer</ins> les modules nécessaires et à <ins>créer des fonctions</ins> utiles pour l'entièté du PE.
 
-# In[1]:
+# In[16]:
 
 
 # !pip install --upgrade pip
@@ -26,7 +26,7 @@
 # !pip install opencv-python
 
 
-# In[2]:
+# In[17]:
 
 
 # -*- coding: utf-8 -*-
@@ -53,7 +53,7 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 
 
-# In[3]:
+# In[18]:
 
 
 plt.rcParams['axes.linewidth'] = 1.2
@@ -68,10 +68,10 @@ def antiraman(x):
     return 632.8 / (1 - 632.8 * x * 10 ** (-7))
 
 
-# In[4]:
+# In[19]:
 
 
-class Etalinnage:
+class Calibration:
     """
     Classe pour l'étalonnage. À mettre dans cette classe les échantillons d'éthanol et d'eau servant à l'étalonnage.
     """
@@ -118,7 +118,7 @@ class Etalinnage:
         self.divismin = divismin
         
         #ajuste l'axe des x selon la calibration
-        slope, intercept, r_value, p_value, std_err = linregress(Etalinnage.px, Etalinnage.nm)
+        slope, intercept, r_value, p_value, std_err = linregress(Calibration.px, Calibration.nm)
         x_new = np.array(range(1339))
         nm = x_new * slope + intercept
         # Transforme les x en cm-1.
@@ -154,7 +154,7 @@ class Etalinnage:
             plt.yticks(fontsize= 12)
             plt.show()
         
-        if zero: Etalinnage.ethanolage[self.nom] = [0, 0, 0, 50, 0, 0, [0, 1]] 
+        if zero: Calibration.ethanolage[self.nom] = [0, 0, 0, 50, 0, 0, [0, 1]] 
         else:
             #soustrait la fluorescence.
             self.enlever_bruit(max_c=self.max_c, max_p=self.max_p, divismin = self.divismin)
@@ -175,12 +175,12 @@ class Etalinnage:
         :return: np.array, Le spectre corrigé après le retrait de l'eau.
         """
         if self.zero:
-            Etalinnage.y_0 = self.raw_y
+            Calibration.y_0 = self.raw_y
             self.y_corrige_eau = self.raw_y
-        elif len(Etalinnage.y_0) == 0:
+        elif len(Calibration.y_0) == 0:
             self.y_corrige_eau = self.raw_y
         else:
-            self.y_corrige_eau = self.raw_y - Etalinnage.y_0
+            self.y_corrige_eau = self.raw_y - Calibration.y_0
         return self.y_corrige_eau
 
     def enlever_bruit(self, max_c=290, divismin = 1, max_p=290):
@@ -269,7 +269,7 @@ class Etalinnage:
         self.valeurbruit = self.y_corrige_bruit[list(np.array(self.bons_y_ind[1+self.d:-1-self.d])-1-self.d)]
         # calcule de l'incertitude par l'écart type
         ecart = 3*np.std(self.valeurbruit)
-        Etalinnage.ethanolage[self.nom] = list(np.array([self.conc, self.peakmax, self.x_max, ecart, self.x_raman, self.y_corrige_bruit, np.array(self.domaine_pic)*self.balance], dtype=object)/self.balance)
+        Calibration.ethanolage[self.nom] = list(np.array([self.conc, self.peakmax, self.x_max, ecart, self.x_raman, self.y_corrige_bruit, np.array(self.domaine_pic)*self.balance], dtype=object)/self.balance)
         return [self.x_max, self.peakmax]
 
     def graphique_selection(self):
@@ -366,7 +366,7 @@ class Etalinnage:
         concentrations = [7, 10, 23, 35, 48, 54, 62, 69, 0][::-1]
         plt.figure(figsize=(10, 6), dpi = 100)
         plt.rcParams.update({"font.size":15})
-        for couple in Etalinnage.ethanolage.values():
+        for couple in Calibration.ethanolage.values():
             if i ==0 :
                 i+=1
             else:
@@ -392,10 +392,10 @@ class Etalinnage:
         plt.show()
 
 
-# In[5]:
+# In[20]:
 
 
-class Echantillon(Etalinnage):
+class Samples(Calibration):
     """
     Classe pour l'échantillonage. À mettre dans cette classe les échantillons à analyser.
     Méthodes:
@@ -431,7 +431,7 @@ class Echantillon(Etalinnage):
         
         # calcule l'incertitude à partir de l'écart type possibilité de multiplié l'écart par 3 aulieu de 1 pour de plus grande incertitude
         ecart = 1*np.std(self.valeurbruit)
-        Echantillon.echantillons[self.nom] = [self.conc, self.peakmax, self.x_max, ecart, self.x_raman, self.y_corrige_bruit, self.domaine_pic]
+        Samples.echantillons[self.nom] = [self.conc, self.peakmax, self.x_max, ecart, self.x_raman, self.y_corrige_bruit, self.domaine_pic]
         return [self.x_max, self.peakmax]
 
     def concentration(self):
@@ -495,7 +495,7 @@ class Echantillon(Etalinnage):
         plt.errorbar(liste_y, liste_x, xerr=liste_erreur, fmt='.', label="Points d'étalonnage")
         plt.plot(liste_y, droite(liste_y, A, B), label="Droite de régression")
         liste_conc = []
-        couple = Echantillon.echantillons[self.nom]
+        couple = Samples.echantillons[self.nom]
         liste_conc.append(droite(couple[1], A, B))
         erreur = np.abs(0.5 * droite(couple[1] + couple[3], A, B) - 0.5 * droite(couple[1] - couple[3], A, B))
         plt.plot(couple[1], droite(couple[1], A, B), ".", label=f"Concentration de {self.nom}")
@@ -595,7 +595,7 @@ class Echantillon(Etalinnage):
         i = 0
         dicto_conc = {}
         conc, pos = [], []
-        for nom, couple in zip(Echantillon.echantillons.keys(), Echantillon.echantillons.values()):
+        for nom, couple in zip(Samples.echantillons.keys(), Samples.echantillons.values()):
             dicto_conc[nom] = droite(couple[1], A, B)
             erreur = np.abs(0.5 * droite(couple[1] + couple[3], A2, B2) - 0.5 * droite(couple[1] - couple[3], A1, B1))
             plt.errorbar(couple[1], droite(couple[1], A, B), elinewidth=1.1, c=couleur[i], xerr=couple[3], yerr=erreur)
@@ -632,7 +632,7 @@ class Echantillon(Etalinnage):
         fig, axs = plt.subplots(2, 2, figsize=(10, 6), dpi = 100, sharey=True, sharex=True)
         
         plt.rcParams.update({"font.size":15})
-        for couple in Echantillon.echantillons.values():
+        for couple in Samples.echantillons.values():
             if i <2:
                 axs[0][i].plot(couple[4], couple[5], c=colors[i], label = f"Guru {name[i]}") 
                 axs[0][i].set_xlim(851, 1750)
@@ -659,7 +659,7 @@ class Echantillon(Etalinnage):
         colors = ['red', 'gold', 'fuchsia']
         name = ["rouge", "jaune", "rose"]
         fig, axes = plt.subplots(3, 1, figsize=(9,11), dpi = 100, sharex=True)
-        for couple in Echantillon.echantillons.values():
+        for couple in Samples.echantillons.values():
             axes[i].plot(couple[4], couple[5], c=colors[i], label = f"Guru {name[i]}") 
             axes[i].set_xlim(931, 1750)
             axes[i].set_ylim(-1100, 2300)
