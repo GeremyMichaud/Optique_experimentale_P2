@@ -15,7 +15,7 @@
 # ## Préliminaires
 # Cette section sert à <ins>importer</ins> les modules nécessaires et à <ins>créer des fonctions</ins> utiles pour l'entièté du PE.
 
-# In[16]:
+# In[14]:
 
 
 # !pip install --upgrade pip
@@ -26,7 +26,7 @@
 # !pip install opencv-python
 
 
-# In[17]:
+# In[15]:
 
 
 # -*- coding: utf-8 -*-
@@ -53,22 +53,19 @@ from scipy.stats import linregress
 from scipy.interpolate import interp1d
 
 
-# In[18]:
+# ## Classe Calibration
+
+# In[16]:
 
 
-plt.rcParams['axes.linewidth'] = 1.2
-
-def droite(x, a, b):  # pour la droite de régression
-    return a * x + b
-
-def raman(x):  # pour passer de nanomètres à raman shift
+def nm2raman(x):  # pour passer de nanomètres à raman shift
     return 1 / 632.8e-7 - 1 / (x * 1e-7)
 
-def antiraman(x):
-    return 632.8 / (1 - 632.8 * x * 10 ** (-7))
+def raman2nm(x):
+    return 632.8 / (1 - 632.8 * x * 10-7)
 
 
-# In[19]:
+# In[17]:
 
 
 class Calibration:
@@ -123,7 +120,7 @@ class Calibration:
         nm = x_new * slope + intercept
         # Transforme les x en cm-1.
         self.raw_x_nm = np.array(nm[::-1])# = nm
-        self.raw_x = raman(np.array(nm[::-1]))  
+        self.raw_x = nm2raman(np.array(nm[::-1]))  
         
         df = pd.read_csv(fichier, sep=s)
         y = df.iloc[:, 2]
@@ -243,7 +240,7 @@ class Calibration:
         self.f2 = interp1d(self.bons_x, self.bons_y, kind='linear')
         
         # Soustraction des données expérimentales par la courbe d'interpolation pour enlever la fluorescence
-        self.y_corrige_bruit = self.y_corrige_eau[-self.cut2:-self.cut] - self.f2(antiraman(self.x_raman))
+        self.y_corrige_bruit = self.y_corrige_eau[-self.cut2:-self.cut] - self.f2(raman2nm(self.x_raman))
         
         return self.y_corrige_bruit
 
@@ -285,15 +282,15 @@ class Calibration:
         plt.figure(figsize=(10, 6), dpi=100)
         
         #trace le spectre initiale en rouge et l'interpolation sur la fluorescence en vert
-        plt.plot(self.x_raman, self.f2(antiraman(self.x_raman)), c = 'green', label="Courbe d'interpolation")
+        plt.plot(self.x_raman, self.f2(raman2nm(self.x_raman)), c = 'green', label="Courbe d'interpolation")
         plt.plot(self.x_raman, self.y_corrige_eau[-self.cut2:-self.cut], c = 'red', label=f"Spectre de {self.nom}",
                 linewidth=0.5)
         
         #Affiche les points utilisés lors de la selection de point.
-        plt.scatter(raman(x_interp[::self.d]), y_interp[::self.d], marker='^', s=10, label="Points par défaut")
+        plt.scatter(nm2raman(x_interp[::self.d]), y_interp[::self.d], marker='^', s=10, label="Points par défaut")
         
         #Affiche la concavité et la pente au dessus de chaque point.
-        for x, y, r, p in zip(raman(x_interp[::self.d]), y_interp[::self.d], self.liste_c, self.liste_p):
+        for x, y, r, p in zip(nm2raman(x_interp[::self.d]), y_interp[::self.d], self.liste_c, self.liste_p):
             concavite = f"{r}"
             pente = f"{p}"
             plt.annotate('c:'+concavite,  # this is the text
@@ -308,7 +305,7 @@ class Calibration:
                         ha='center')
         
         #Affiche les points qui on été sélectionné comme ne faisant pas partie d'un pic. AKA les points qui servent à interpolé  la fluorescence.
-        plt.scatter(raman(np.array(self.bons_x)), self.bons_y, marker='s', s=10, label="Points corrigés")
+        plt.scatter(nm2raman(np.array(self.bons_x)), self.bons_y, marker='s', s=10, label="Points corrigés")
         
         #trace des X sur les pics (ca suce moi je le mets en commentaire)
         plt.plot(self.x_raman[self.peaks_raman], self.y_corrige_eau[-self.cut2:-self.cut][self.peaks_raman], "x", label=f"Pics")
@@ -392,7 +389,27 @@ class Calibration:
         plt.show()
 
 
-# In[20]:
+# ## Classe Samples
+# Permet de prendre en compte l'échantillonage
+
+# In[18]:
+
+
+def linear_eq(x, slope, intercept):
+    """Décrit l'équation d'une droite de régression linéaire.
+
+    Args:
+        x (any): Valeurs prises en compte dans la route
+        slope (any): Pente de la droite
+        intercept (any): Zéro de la droite
+
+    Returns:
+        function: Fonction de la droite de régression linéaire
+    #"""
+    return slope * x + intercept
+
+
+# In[19]:
 
 
 class Samples(Calibration):
@@ -462,18 +479,18 @@ class Samples(Calibration):
         liste_x = np.array(liste_x)
         
         # On se fait une énorme droite de régression.
-        popt, pcov = curve_fit(droite, liste_y, liste_x)
+        popt, pcov = curve_fit(linear_eq, liste_y, liste_x)
         A, B = popt
         #calcule du R^2 
-        y_pred = droite(liste_y, *popt)
+        y_pred = linear_eq(liste_y, *popt)
         print(f"Valeur du r^2 pour la droite: {r2_score(liste_x, y_pred)}")
         
         # Droite de régression min
-        popt, pcov = curve_fit(droite, liste_y+liste_erreur, liste_x)
+        popt, pcov = curve_fit(linear_eq, liste_y+liste_erreur, liste_x)
         A1, B1 = popt
         
         # Droite de régression min
-        popt, pcov = curve_fit(droite, liste_y-liste_erreur, liste_x)
+        popt, pcov = curve_fit(linear_eq, liste_y-liste_erreur, liste_x)
         A2, B2 = popt
         
         #paramètre de la droite avec incertitude'$%s$' %r'5e^{-x} + x - 5'
@@ -493,14 +510,14 @@ class Samples(Calibration):
         
         # plt.plot(liste_y, liste_x, "o", label="Points d'étalonnage")
         plt.errorbar(liste_y, liste_x, xerr=liste_erreur, fmt='.', label="Points d'étalonnage")
-        plt.plot(liste_y, droite(liste_y, A, B), label="Droite de régression")
+        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression")
         liste_conc = []
         couple = Samples.echantillons[self.nom]
-        liste_conc.append(droite(couple[1], A, B))
-        erreur = np.abs(0.5 * droite(couple[1] + couple[3], A, B) - 0.5 * droite(couple[1] - couple[3], A, B))
-        plt.plot(couple[1], droite(couple[1], A, B), ".", label=f"Concentration de {self.nom}")
-        plt.errorbar(couple[1], droite(couple[1], A, B), xerr=couple[3], yerr=erreur)
-        print(f"\n snr {self.nom}: {couple[1] / couple[3]:.2f} \n Concentration {self.nom}: {droite(couple[1], A, B):.2f} ± {erreur:.2f}")
+        liste_conc.append(linear_eq(couple[1], A, B))
+        erreur = np.abs(0.5 * linear_eq(couple[1] + couple[3], A, B) - 0.5 * linear_eq(couple[1] - couple[3], A, B))
+        plt.plot(couple[1], linear_eq(couple[1], A, B), ".", label=f"Concentration de {self.nom}")
+        plt.errorbar(couple[1], linear_eq(couple[1], A, B), xerr=couple[3], yerr=erreur)
+        print(f"\n snr {self.nom}: {couple[1] / couple[3]:.2f} \n Concentration {self.nom}: {linear_eq(couple[1], A, B):.2f} ± {erreur:.2f}")
         liste_emplacement.append(couple[2])
         etiquette = f"Intensité du pic maximum entre {self.domaine_pic[0]} et {self.domaine_pic[1]} de décalage Raman [-]"
         # etiquette = f"Intensité du pic maximum à 1063 de décalage Raman [-]"
@@ -539,18 +556,18 @@ class Samples(Calibration):
         liste_x = np.array(liste_x)
         
         # On se fait une énorme droite de régression.
-        popt, pcov = curve_fit(droite, liste_y, liste_x)
+        popt, pcov = curve_fit(linear_eq, liste_y, liste_x)
         A, B = popt
         #calcule du R^2 
-        y_pred = droite(liste_y, *popt)
+        y_pred = linear_eq(liste_y, *popt)
         print(f"Valeur du r^2 pour la droite: {r2_score(liste_x, y_pred)}")
         
         # Droite de régression min
-        popt, pcov = curve_fit(droite, liste_y+liste_erreur, liste_x)
+        popt, pcov = curve_fit(linear_eq, liste_y+liste_erreur, liste_x)
         A1, B1 = popt
         
         # Droite de régression min
-        popt, pcov = curve_fit(droite, liste_y-liste_erreur, liste_x)
+        popt, pcov = curve_fit(linear_eq, liste_y-liste_erreur, liste_x)
         A2, B2 = popt
         
         #paramètre de la droite avec incertitude'$%s$' %r'5e^{-x} + x - 5'
@@ -562,9 +579,9 @@ class Samples(Calibration):
         plt.figure(figsize=(10, 6), dpi=100)
         
         # affichage d'un intervale de confiance sur la droite de régression à l'aide des droites min max.
-        plt.fill_between(x = liste_y[[0, -1]], y1 = droite(liste_y[[0, -1]], A2, B2), y2 = droite(liste_y[[0, -1]], A1, B1),interpolate = True, color='gray', alpha=0.5, linewidth=0.01, label='Intervalle de confiance')
+        plt.fill_between(x = liste_y[[0, -1]], y1 = linear_eq(liste_y[[0, -1]], A2, B2), y2 = linear_eq(liste_y[[0, -1]], A1, B1),interpolate = True, color='gray', alpha=0.5, linewidth=0.01, label='Intervalle de confiance')
         
-        plt.plot(liste_y, droite(liste_y, A, B), label="Droite de régression", c = 'red', ls ='--', lw = 1)
+        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression", c = 'red', ls ='--', lw = 1)
         plt.scatter(liste_y, liste_x,s = 12, alpha = 1, c='blue', label="Points d'étalonnage")
         
         etiquette = f"Intensité du pic maximum entre {domaine_pic[0]} et {domaine_pic[1]} de décalage Raman [-]"
@@ -588,7 +605,7 @@ class Samples(Calibration):
         
         #nouveau graphique avec les concentrations des échantillons à évaluer sur la droite de régression
         plt.figure(figsize=(10, 6), dpi = 100)
-        plt.plot(liste_y, droite(liste_y, A, B), label="Droite de régression", c = 'green', ls ='--', lw = 0.9)
+        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression", c = 'green', ls ='--', lw = 0.9)
         
         couleur = ['red', 'gold', 'fuchsia','silver', 'steelblue']
         shape = ['v', 's', '^', '*', 'D']
@@ -596,12 +613,12 @@ class Samples(Calibration):
         dicto_conc = {}
         conc, pos = [], []
         for nom, couple in zip(Samples.echantillons.keys(), Samples.echantillons.values()):
-            dicto_conc[nom] = droite(couple[1], A, B)
-            erreur = np.abs(0.5 * droite(couple[1] + couple[3], A2, B2) - 0.5 * droite(couple[1] - couple[3], A1, B1))
-            plt.errorbar(couple[1], droite(couple[1], A, B), elinewidth=1.1, c=couleur[i], xerr=couple[3], yerr=erreur)
-            plt.scatter(couple[1], droite(couple[1], A, B),s = 40, marker = shape[i], alpha = 1, c = couleur[i], label=f"Concentration de {nom}")
-            print(f"\n snr {nom}: {couple[1] / couple[3]:.2f} \n Concentration {nom}: {droite(couple[1], A, B):.2f} ± {erreur:.2f}")
-            conc += [droite(couple[1], A, B)]
+            dicto_conc[nom] = linear_eq(couple[1], A, B)
+            erreur = np.abs(0.5 * linear_eq(couple[1] + couple[3], A2, B2) - 0.5 * linear_eq(couple[1] - couple[3], A1, B1))
+            plt.errorbar(couple[1], linear_eq(couple[1], A, B), elinewidth=1.1, c=couleur[i], xerr=couple[3], yerr=erreur)
+            plt.scatter(couple[1], linewidths=(couple[1], A, B),s = 40, marker = shape[i], alpha = 1, c = couleur[i], label=f"Concentration de {nom}")
+            print(f"\n snr {nom}: {couple[1] / couple[3]:.2f} \n Concentration {nom}: {linear_eq(couple[1], A, B):.2f} ± {erreur:.2f}")
+            conc += [linear_eq(couple[1], A, B)]
             pos += [couple[1]]
             liste_emplacement.append(couple[2])
             i += 1
@@ -620,8 +637,6 @@ class Samples(Calibration):
         
         plt.show()
         return dicto_conc
-    
-    
     
     def graphique_combiné_echantillon(self):
         #méthode utilisisé pour faire des graphiques personnalisé pour le rapport de lab pas réellement utile pour l'analyse de donné
