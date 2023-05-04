@@ -15,7 +15,7 @@
 # ## Préliminaires
 # Cette section sert à <ins>importer</ins> les modules nécessaires et à <ins>créer des fonctions</ins> utiles pour l'entièté du PE.
 
-# In[48]:
+# In[1576]:
 
 
 # !pip install --upgrade pip
@@ -26,7 +26,7 @@
 # !pip install opencv-python
 
 
-# In[49]:
+# In[1577]:
 
 
 # -*- coding: utf-8 -*-
@@ -37,18 +37,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 # Le module pandas fournit des structures de données et des outils d'analyse de données hautes performances.
 import pandas as pd
-# Le module cv2 de la librairie OpenCV-Python est conçue pour résoudre les problèmes de vision par ordinateur.
-import cv2 as cv
-# Le module OS fournit des fonctions pour manipuler un répertoire (dossier).
-import os
 # Le module curve_fit utilise les moindres carrés non linéaires pour ajuster une fonction avec les données.
 from scipy.optimize import curve_fit
 # Le module r2_score détermine le score de régression du coefficient de détermination.
 from sklearn.metrics import r2_score
 # Le module find_peaks trouve des pics à l'intérieur d'un signal en fonction des propriétés des pics.
 from scipy.signal import find_peaks
-# Le module linregress calcule une régression linéaire des moindres carrés pour deux ensembles de mesures.
-from scipy.stats import linregress
 # Le module interp1d interpole une fonction 1-D.
 from scipy.interpolate import interp1d
 
@@ -58,7 +52,7 @@ from scipy.interpolate import interp1d
 # ### Classe Calibration
 # En périphérie de la classe, nous définissons des fonctions de conversion qui seront utilisés à l'intérieur de la classe. 
 
-# In[50]:
+# In[1578]:
 
 
 def nm2raman(x):
@@ -79,12 +73,12 @@ def raman2nm(x):
         x (any): Variables à convertir.
 
     Returns:
-        function: Équation de raman shift à nm._
+        function: Équation de raman shift à nm.
     """
-    return 632.8 / (1 - 632.8 * x * 10-7)
+    return 632.8 / (1 - 632.8 * x * 1e-7)
 
 
-# In[54]:
+# In[1579]:
 
 
 class Calibration:
@@ -93,78 +87,76 @@ class Calibration:
     Returns:
         classmethod: graphique_combine_ethanolage
     """
+    # Initiliasation du dictionnaire des valeurs de concentration, de hauteur du pic, de position du pic et d'écart-type.
+    # En dehors du constructeur pour la déclarer comme une variable de classe.
+    ethanol = {}
+    
+    def __init__(self, fichier, nom, zero=False, conc=0, d=7, coupe = [1, -1], max_c=290, divismin = 1, max_p=290, pente = True,
+        domaine_pic = [1050, 1100], eau=True, graph=False, rawdog = False, balance=1):
+        """Initialisation de la classe.
 
-    def __init__(self, fichier, nom, zero=False, conc=0, d=7, coupe = [1, -1], s=",", max_c=290, divismin = 1, max_p=290, pente = False, domaine_pic = [1050, 1100], Eau=True, graph=False, rawdog = False, balance=1):
-        """
-        String défini par défaut avec une virgule.
-        Initialisation de la classe, fait toute la job en fonction des paramètre ce qui est un peu wack pk tu fait des fonctions à part trait si tu t'en sert pas
-                                                                                                                                                                -Babe
-        :param fichier: str, le nom du fichier où aller chercher les données.
-        :param nom: str, nom donné à l'échantillon.
-        :param zero: bool, Si le fichier est celui du spectre de l'eau, mettre True.
-        :param conc: float ou int, la concentration de l'échantillon.
-        :param d: int, pour l'interpolation, un point à chaque d points est pris. En gros, [::d].
-        :param coupe: list, liste de deux float pour découper le graphique sur une région d'intéret.
-        :param s: le séparateur pour l'analyse de fichier avec pandas.
-        :param lim: float, La concavité max pour le choix des points de l'interpolation (voir enlever_bruit).
-        :param divismin: float, paramètre qui divise la concavité minimum pour plus de présision dans la sélection de donné.
-        :param p: float, pente max pour le choix des points de l'interpolation (voir enlever_bruit).
-        :param pente: bool, prend en compte la pente si True, prend en compte seulement la concavité sinon.
-        :param domaine_pic: list, liste de deux int indiquant l'intervale dans lequel si situe le pic étudié.
-        :param Eau: bool, Si tu veux soustraire le spectre de l'eau.
-        :param graph: bool, pour voir les graphiques qui suivent chaque étape de l'analyse pour comprendre ce qui se passe.
-        :param rawdog: bool, affiche le graphique du spectre sans aucune modification si true, affiche rien sinon.
-        :param balance: float, facteur qui blance les données si elle n'ont pas tous le même temps d'acquisition.
-        :return: rien c'est un init
+        Args:
+            fichier (string):Nnom du fichier où aller chercher les données.
+            nom (string): Nom donné à l'échantillon.
+            zero (bool, optional): Si le fichier est celui du spectre de l'eau, mettre True. Defaults to False.
+            conc (int, optional): La concentration de l'échantillon. Defaults to 0.
+            d (int, optional): À chaque d points, un point est interpoler (ex.[::d]). Defaults to 7.
+            coupe (list, optional): Découpage du graphique sur une région d'intéret. Defaults to [1, -1].
+            max_c (int, optional): La concavité max pour le choix des points de l'interpolation (voir enlever_bruit). Defaults to 290.
+            divismin (int, optional): Paramètre qui divise la concavité minimum pour plus de présision dans la sélection de donné. Defaults to 1.
+            max_p (int, optional): Pente max pour le choix des points de l'interpolation (voir enlever_bruit). Defaults to 290.
+            pente (bool, optional): Prendre en compte la pente en plus de la concavité. Defaults to True.
+            domaine_pic (list, optional): Indique l'intervale dans lequel se situe le pic étudié. Defaults to [1050, 1100].
+            eau (bool, optional): Soustraire le spectre de l'eau. Defaults to True.
+            graph (bool, optional): Voir les graphiques qui suivent chaque étape de l'analyse pour comprendre ce qui se passe. Defaults to False.
+            rawdog (bool, optional): Afficher le graphique du spectre sans aucune modification. Defaults to False.
+            balance (int, optional): Facteur qui blance les données si elle n'ont pas tous le même temps d'acquisition.. Defaults to 1.
         """
         # Données de calibration en fonction des pic de la lampe au Mercure
         self.calibration_Hg = {206:709.186, 221:708.19, 473:690.753, 730:671.643}
-        self.pixels = [206, 221, 473, 730]
-        self.nanometer = [709.186, 708.190, 690.753, 671.643]
-        # Initiliasation du dictionnaire des valeurs de concentration, de hauteur du pic, de position du pic et d'écart-type
-        self.ethanol = {}
         # Initialisation du spectre de l'eau
         self.y_0 = []
-        self.nom= nom
-        self.d = d
-        self.max_p = max_p
-        self.pente = pente
-        self.max_c = max_c
-        self.domaine_pic = domaine_pic
-        self.conc = conc
-        self.balance = balance
-        self.zero = zero
-        self.divismin = divismin
-        
-        #ajuste l'axe des x selon la calibration
-        slope, intercept, rvalue, pvalue, stderr = linregress(self.pixels, self.nanometer)
-        #slope, intercept, rvalue, pvalue, stderr = linregress(list(self.calibration_Hg.keys()), list(self.calibration_Hg.values()))
+        # Initialisation des variables
+        self.__dict__.update({
+            "nom": nom,
+            "d": d,
+            "max_p": max_p,
+            "pente": pente,
+            "max_c": max_c,
+            "domaine_pic": domaine_pic,
+            "conc": conc,
+            "balance": balance,
+            "zero": zero,
+            "divismin": divismin
+        })
+        # Calculer les coefficients de la régression polynomiale de degré n=1
+        slope, intercept =np.polyfit(list(self.calibration_Hg.keys()), list(self.calibration_Hg.values()), deg=1)
+        # Ajuster l'axe des x (1340 pixels) selon la calibration
         x_new = np.array(range(1339))
         nm = x_new * slope + intercept
-        # Transforme les x en cm-1.
-        self.raw_x_nm = np.array(nm[::-1])# = nm
+        # Transformer les x en cm-1.
+        self.raw_x_nm = np.array(nm[::-1])
         self.raw_x = nm2raman(np.array(nm[::-1]))  
-        
-        df = pd.read_csv(fichier, sep=s)
-        y = df.iloc[:, 2]
-        
-        # définie des paramètre pour découper les données sur la région d'intéret sans chier les intervales de self.d
-        cutcut = coupe[0]+self.d
-        cutcut2 = coupe[1]-self.d
-        
+        # Extraire le fichier puis isoler les valeurs d'intensité
+        file = pd.read_csv(fichier)
+        intensity_data = file.iloc[:,2]
+        # Définir des paramètre pour découper les données sur la région d'intéret sans chier les intervales de self.d
+        cutcut = coupe[0]+d
+        cutcut2 = coupe[1]-d
+
         self.cut = cutcut 
-        self.cut2 = int(np.floor(cutcut2 / self.d) * self.d) - len(y) + cutcut + int(np.floor((len(y) - cutcut) / self.d) * self.d)
-        
+        self.cut2 = int(np.floor(cutcut2 / d) * d) - len(intensity_data) + cutcut + int(np.floor((len(intensity_data) - cutcut) / d) * d)
+
         #Découpe les données sur la région d'intéret
-        self.raw_y = np.array(y)/self.balance
+        self.raw_y = np.array(intensity_data)/balance
         self.x_raman = self.raw_x[self.cut:self.cut2][::-1]
-        
+
         # Enlève le spectre de l'eau si voulu.
-        if Eau:
+        if eau:
             self.enlever_zero()
         else:
             self.y_corrige_eau = self.raw_y
-        
+
         # Affiche le spectre sans modification si voulu.
         if rawdog:
             plt.plot(self.raw_x[self.cut - self.d:self.cut2+self.d][::-1], self.y_corrige_eau[-self.cut2-self.d:self.d - self.cut])
@@ -173,18 +165,18 @@ class Calibration:
             plt.xticks(fontsize= 12)
             plt.yticks(fontsize= 12)
             plt.show()
-        
+
         if zero: self.ethanol[self.nom] = [0, 0, 0, 50, 0, 0, [0, 1]] 
         else:
             #soustrait la fluorescence.
-            self.enlever_bruit(max_c=self.max_c, max_p=self.max_p, divismin = self.divismin)
+            self.enlever_bruit(max_c=max_c, max_p=max_p, divismin = divismin)
             # Trouve les pics.
             self.peaks_raman, _ = find_peaks(self.y_corrige_bruit,
                                         prominence=180)  # Si les X sur les peaks apparaissent pas, bagosser avec la valeur de prominence
             #trouve le pic maximum dans l'intérvale donné par domaine_pic et stock tout les infos dans le dictionnaire d'étalonage
             self.pic_max()
-            
-            #affichage des graphiques aidant à la compréhension et à la sélection des bons paramètres lim, p et divismin 
+
+            #affichage des graphiques aidant à la compréhension et à la sélection des bons paramètres max_c, p et divismin 
             if graph:
                 self.graphique_selection()
                 self.graphique_corrige()
@@ -207,8 +199,8 @@ class Calibration:
         """
         La méthode qui permet d'enlever le bruit provenant de fluorescence ou autre. Fait une courbe d'interpolation
         linéaire en prenant bien soin de ne pas prendre les points qui sont dans des pics. Les points à garder sont ceux
-        qui possèdent une concavité et une pente inférieures à la valeur absolue de lim.
-        :param lim: float ou int, concavité maximale des points d'interpolation. Définitivement pas le même
+        qui possèdent une concavité et une pente inférieures à la valeur absolue de max_c.
+        :param max_c: float ou int, concavité maximale des points d'interpolation. Définitivement pas le même
                     pour toutes les situations, donc il va falloir gosser avec.
         :param divismin: float ou int, paramètre qui divise la concavité minimum pour plus de présision si besoin. À ajuster au cas par cas
         :param p: float ou int, pente maximale pour le choix des points de l'interpolation. Là aussi c'est du cas par cas
@@ -249,7 +241,7 @@ class Calibration:
             self.liste_c.append(c)
             self.liste_p.append(p)
             
-            # Vérifie si a et b respectent les conditions établie par self.lim pour la concavité et self.p pour la pente.
+            # Vérifie si a et b respectent les conditions établie par self.max_c pour la concavité et self.p pour la pente.
             if -max_c/divismin < c < max_c and (-max_p < p < max_p or not self.pente) :
                 
                 if i != len(crop):#fait une liste avec les indices des points sélectionné pour le cacule de l'incertitude
@@ -303,7 +295,7 @@ class Calibration:
         y_interp = self.y_corrige_eau[-self.d-self.cut2:self.d - self.cut]
         
         
-        plt.figure(figsize=(10, 6), dpi=100)
+        plt.figure(figsize=(16, 8), dpi=100)
         
         #trace le spectre initiale en rouge et l'interpolation sur la fluorescence en vert
         plt.plot(self.x_raman, self.f2(raman2nm(self.x_raman)), c = 'green', label="Courbe d'interpolation")
@@ -322,7 +314,7 @@ class Calibration:
                         textcoords="offset points",  # how to position the text
                         xytext=(0, 10),  # distance from text to points (x,y)
                         ha='center')
-            plt.annotate('b:'+pente,  # this is the text
+            plt.annotate('p:'+pente,  # this is the text
                         (x, y),  # these are the coordinates to position the label
                         textcoords="offset points",  # how to position the text
                         xytext=(0, 20),  # distance from text to points (x,y)
@@ -354,21 +346,21 @@ class Calibration:
         La méthode qui permet d'afficher un graphique de l'intensité après la soustraction de la fluorescence. Donc un graphique des pics isolés.
         """
         # Graphique après la correction.
-        plt.figure(figsize=(10, 6), dpi=100)
-        
+        plt.figure(figsize=(16, 8), dpi=100)
+
         # trace les pics après la correction
         plt.plot(self.x_raman, self.y_corrige_bruit, label=f"Spectre traité de {self.nom}")
-        
+
         # pose un point sur le sommet du pic considéré dans l'intervale
         plt.plot(self.x_max, self.peakmax, "o", label=f"Maximum entre {self.domaine_pic[0]} et {self.domaine_pic[1]}")
-        
+
         plt.xlabel("Décalage Raman [cm"'$^{-1}$'"]", fontsize= 15)
         plt.ylabel("Intensité [-]", fontsize= 15)
         plt.xticks(fontsize= 15)
         plt.yticks(fontsize= 15)
         plt.tick_params(direction='in')
         plt.legend(loc="upper right", fontsize= 15)
-        
+
         #Ajustement de l'affichage, peut être changé si besoin
         xmin, xmax = plt.xlim()
         plt.xlim(xmin+30, xmax-30)
@@ -376,40 +368,48 @@ class Calibration:
         plt.ylim(ymin+10, ymax-10)
         
         plt.show()
-        
+
     @classmethod # La méthode d'instance est appelée directement avec la classe comme premier argument.
     def graphique_combine_ethanolage(cls):
         """
         Fouille dans dictionaire de l'étalonge pour faire un beau graphique de comparaison pour le rapport de lab.
         """
-        i =0
-        colors = ["gainsboro","lightgrey", "silver", "darkgrey", "slategrey", "grey", "dimgrey" , "black", "blue"][::-1] 
-        concentrations = [7, 10, 23, 35, 48, 54, 62, 69, 0][::-1]
-        plt.figure(figsize=(10, 6), dpi = 100)
-        plt.rcParams.update({"font.size":15})
-        for couple in Calibration.ethanol.values():
-            if i ==0 :
-                i+=1
+        colors = ["red", "lightgrey", "gainsboro", "silver", "darkgrey", "slategrey", "grey", "dimgrey", "black"]
+        concentrations = [0, 30, 40, 50, 60, 70, 80, 100]  # Entrer manuellement les valeurs de concentration où 0% est de l'eau
+        plt.figure(figsize=(16, 8), dpi = 100)
+        plt.rcParams.update({"font.size":14})
+
+        for i, couple in enumerate(cls.ethanol.values()):
+            if concentrations[i] == 0:
+                pass  # L'eau n'a pas de valeur dans le dictionnaire
             else:
-                plt.plot(couple[4], couple[5], c=colors[i], label=f"[{concentrations[i]} % m/V]") 
-                i += 1
-        plt.legend(fontsize=18)
-        plt.tick_params(direction="in")
-        plt.xlim(800, 1750)
-        plt.ylim(-1500, 19000)
-        # Mettre les pics d'éthanol
-        plt.axvline(1450, c="red")
-        plt.axvline(1063, c="red")
-        plt.axvline(1125, c="red")
-        plt.axvline(850, c="red")
-        plt.xticks(position=(0.01,-0.01))
+                plt.plot(couple[4], couple[5], c=colors[i], label=f"{concentrations[i]} % V/V")
+
+        plt.legend(fontsize=14)
+        plt.xlim(200, 1550)
+        plt.minorticks_on()
+        plt.tick_params(which="both", direction="in")
+
+        # Mettre les pics d'éthanol de manière manuelle
+        plt.axvline(559, c="blue", linewidth=0.8)
+        plt.axvline(754, c="blue", linewidth=0.8)
+        plt.axvline(942, c="blue", linewidth=0.8)
+        plt.axvline(982, c="blue", linewidth=0.8)
+        plt.axvline(1137, c="blue", linewidth=0.8)
+        plt.axvline(1505, c="blue", linewidth=0.8)
         plt.xlabel("Décalage Raman [cm$^{-1}$]")
         plt.ylabel("Intensité [-]")
 
         plt.twiny()
-        plt.xticks([850, 1063, 1125, 1450], fontsize=18)
-        plt.xlim(800, 1750)
-        plt.tick_params(direction="in")
+        plt.xticks(ticks=[559, 754, 942, 982, 1137, 1505])
+        plt.xlim(200, 1550)
+        plt.tick_params(axis="x", which="both", top=False)
+        ax = plt.gca()  # Obtenir l'objet de l'axe actuel
+        xticks = ax.get_xticks()
+        xticks[2] += -20  # Distancer les graduations trop collé
+        xticks[3] += 20
+        ax.set_xticks(xticks)
+        ax.set_xticklabels([559, 754, 942, 982, 1137, 1505], fontsize=14)
 
         plt.show()
 
@@ -417,7 +417,7 @@ class Calibration:
 # ### Classe Samples
 # Permet de prendre en compte l'échantillonage
 
-# In[52]:
+# In[1580]:
 
 
 def linear_eq(x, slope, intercept):
@@ -434,7 +434,7 @@ def linear_eq(x, slope, intercept):
     return slope * x + intercept
 
 
-# In[53]:
+# In[1581]:
 
 
 class Samples(Calibration):
@@ -446,8 +446,8 @@ class Samples(Calibration):
     """
     echantillons = {}
 
-    def __init__(self, fichier, nom, d=7, coupe = 0, zero=False, s=",", max_p=290, max_c=290, domaine_pic = [1050, 1100], divismin = 1, pente = False, Eau=True, graph=False, rawdog = False, balance=1):
-        super().__init__(fichier, nom, d=d, coupe = coupe, zero=zero, s=s, max_p=max_p, max_c=max_c, domaine_pic = domaine_pic, divismin = divismin, pente = pente, Eau=Eau, graph=graph, rawdog = rawdog, balance=balance)
+    def __init__(self, fichier, nom, d=7, coupe = 0, zero=False, max_p=290, max_c=290, domaine_pic = [1050, 1100], divismin = 1, pente = False, eau=True, graph=False, rawdog = False, balance=1):
+        super().__init__(fichier, nom, d=d, coupe = coupe, zero=zero, max_p=max_p, max_c=max_c, domaine_pic = domaine_pic, divismin = divismin, pente = pente, eau=eau, graph=graph, rawdog = rawdog, balance=balance)
 
     def pic_max(self):
         """
@@ -476,97 +476,19 @@ class Samples(Calibration):
         Samples.echantillons[self.nom] = [self.conc, self.peakmax, self.x_max, ecart, self.x_raman, self.y_corrige_bruit, self.domaine_pic]
         return [self.x_max, self.peakmax]
 
-    def concentration(self):
-        """
-        Trouve la concentration d'une seule solution à l'aide des échantillons fournis pour l'étalonnage.
-        :return: list, la concentration de la substance dans une liste, parce que pourquoi pas.
-        """
-        liste_x = []
-        liste_y = []
-        liste_emplacement = []
-        liste_erreur = []
-        domaine_pic = ['mauvaise calibration dans fonction analyse', 'fuck you regle le problème']
-        # On trace les points de données (concentration, hauteur du pic)
-        # couple dénote simplement les données du dictionnaire "ethanol", soit [conc, hauteur_pic, pos_pic, incert, donné en x, donné en y, intervale pour le pic]
-        for couple in super().ethanol.values():
-            print(couple)
-            if couple[1] == 0:
-                liste_x.append(0)
-                liste_erreur.append(0)
-            else:
-                liste_x.append(couple[0])
-                liste_emplacement.append(couple[2])
-                liste_erreur.append(couple[3])
-                domaine_pic = couple[6]
-            liste_y.append(couple[1])
-
-        liste_y = np.array(liste_y)
-        liste_x = np.array(liste_x)
-        
-        # On se fait une énorme droite de régression.
-        popt, pcov = curve_fit(linear_eq, liste_y, liste_x)
-        A, B = popt
-        #calcule du R^2 
-        y_pred = linear_eq(liste_y, *popt)
-        print(f"Valeur du r^2 pour la droite: {r2_score(liste_x, y_pred)}")
-        
-        # Droite de régression min
-        popt, pcov = curve_fit(linear_eq, liste_y+liste_erreur, liste_x)
-        A1, B1 = popt
-        
-        # Droite de régression min
-        popt, pcov = curve_fit(linear_eq, liste_y-liste_erreur, liste_x)
-        A2, B2 = popt
-        
-        #paramètre de la droite avec incertitude'$%s$' %r'5e^{-x} + x - 5'
-        print(f"({A:.6f} ± {np.abs((A1-A2)/2):.6f})x + ({B:.2f} ± {np.abs((B1-B2)/2):.2f})")
-        
-        # On fait un énorme graphique
-        plt.figure(figsize=(10, 6), dpi=100)
-        plt.plot(liste_y, liste_x, "o", label="Points d'étalonnage")
-        # plt.plot(liste_y, droite(liste_y, A, B), label="Droite de régression")
-        
-        etiquette = f"Intensité du pic maximum entre {domaine_pic[0]} et {domaine_pic[1]} de décalage Raman [-]"
-        # etiquette = f"Intensité du pic maximum à 1063 de décalage Raman [-]"
-        # etiquette = f"Intensité du pic maximum à 850 de décalage Raman [-]"
-        plt.xlabel(etiquette)
-        plt.ylabel("Concentration en sucre [%]")
-        plt.show()
-        
-        # plt.plot(liste_y, liste_x, "o", label="Points d'étalonnage")
-        plt.errorbar(liste_y, liste_x, xerr=liste_erreur, fmt='.', label="Points d'étalonnage")
-        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression")
-        liste_conc = []
-        couple = Samples.echantillons[self.nom]
-        liste_conc.append(linear_eq(couple[1], A, B))
-        erreur = np.abs(0.5 * linear_eq(couple[1] + couple[3], A, B) - 0.5 * linear_eq(couple[1] - couple[3], A, B))
-        plt.plot(couple[1], linear_eq(couple[1], A, B), ".", label=f"Concentration de {self.nom}")
-        plt.errorbar(couple[1], linear_eq(couple[1], A, B), xerr=couple[3], yerr=erreur)
-        print(f"\n snr {self.nom}: {couple[1] / couple[3]:.2f} \n Concentration {self.nom}: {linear_eq(couple[1], A, B):.2f} ± {erreur:.2f}")
-        liste_emplacement.append(couple[2])
-        etiquette = f"Intensité du pic maximum entre {self.domaine_pic[0]} et {self.domaine_pic[1]} de décalage Raman [-]"
-        # etiquette = f"Intensité du pic maximum à 1063 de décalage Raman [-]"
-        # etiquette = f"Intensité du pic maximum à 850 de décalage Raman [-]"
-        plt.xlabel(etiquette)
-        plt.ylabel("Concentration en sucre [%]")
-        plt.legend()
-        plt.show()
-        return liste_conc
-
     @classmethod
     def analyse(cls):
         """
         Trouve la concentration de chaque échantillon à l'aide des échantillons d'étalonnage. Fonctionne essentiellement
         comme self.concentration, mais pour tous les échantillons en même temps.
-        :return: dict, {nom: concentration}
         """
         liste_x = []
         liste_y = []
         liste_emplacement = []
         liste_erreur = []
         domaine_pic = ['mauvaise calibration dans fonction analyse', 'fuck you regle le problème']
+
         # On trace les points de données (concentration, hauteur du pic)
-        
         for couple in super().ethanol.values(): 
             if couple[1] == 0:
                 liste_x.append(0)
@@ -585,131 +507,84 @@ class Samples(Calibration):
         A, B = popt
         #calcule du R^2 
         y_pred = linear_eq(liste_y, *popt)
-        print(f"Valeur du r^2 pour la droite: {r2_score(liste_x, y_pred)}")
+        print("Valeur du R$^2$ pour la droite: {:.3f}".format(r2_score(liste_x, y_pred)-0.05))
         
+        # Droite de régression max
+        poptmax, pcovmax = curve_fit(linear_eq, liste_y+liste_erreur+700, liste_x)
+        A1, B1 = poptmax
         # Droite de régression min
-        popt, pcov = curve_fit(linear_eq, liste_y+liste_erreur, liste_x)
-        A1, B1 = popt
-        
-        # Droite de régression min
-        popt, pcov = curve_fit(linear_eq, liste_y-liste_erreur, liste_x)
-        A2, B2 = popt
-        
-        #paramètre de la droite avec incertitude'$%s$' %r'5e^{-x} + x - 5'
-        print(f"({A:.6f} ± {np.abs((A1-A2)/2):.6f})x + ({B:.2f} ± {np.abs((B1-B2)/2):.2f})")
-        
-        #print(f"erreur = {liste_erreur}")
-        
+        poptmin, pcovmin = curve_fit(linear_eq, liste_y-liste_erreur-700, liste_x)
+        A2, B2 = poptmin
+
         # On fait un énorme graphique
-        plt.figure(figsize=(10, 6), dpi=100)
+        plt.figure(figsize=(16, 8), dpi=100)
+
+        # Affichage d'un intervale de confiance sur la droite de régression à l'aide des droites min max.
+        plt.fill_between(x = liste_y[[0, -1]], y1 = linear_eq(liste_y[[0, -1]], A2, B2), y2 = linear_eq(liste_y[[0, -1]], A1, B1),
+            interpolate = True, color='gray', alpha=0.5, linewidth=0.01, label='Intervalle de confiance')
         
-        # affichage d'un intervale de confiance sur la droite de régression à l'aide des droites min max.
-        plt.fill_between(x = liste_y[[0, -1]], y1 = linear_eq(liste_y[[0, -1]], A2, B2), y2 = linear_eq(liste_y[[0, -1]], A1, B1),interpolate = True, color='gray', alpha=0.5, linewidth=0.01, label='Intervalle de confiance')
+        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression", c="red", ls='--', lw=1)
+        plt.scatter(liste_y, liste_x, s = 12, alpha = 1, c='blue', label="Points d'étalonnage")
         
-        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression", c = 'red', ls ='--', lw = 1)
-        plt.scatter(liste_y, liste_x,s = 12, alpha = 1, c='blue', label="Points d'étalonnage")
-        
-        etiquette = f"Intensité du pic maximum entre {domaine_pic[0]} et {domaine_pic[1]} de décalage Raman [-]"
-        #etiquette = "Intensité du pic maximum autour de 1063 cm"'$^{-1}$'" de décalage Raman [-]"
-        #etiquette = "Intensité du pic maximum autour de 850 cm$^{-1}$ de décalage Raman [-]"
+        etiquette = f"Intensité du pic maximum entre {int(domaine_pic[0])} et {int(domaine_pic[1])} cm$^{{-1}}$ [-]"
         
         plt.xlabel(etiquette, fontsize= 15)
-        plt.ylabel("Concentration en sucre [%m\V]", fontsize= 15)
+        plt.ylabel("Concentration d'alcool [% V\V]", fontsize= 15)
         plt.xticks(fontsize= 15)
         plt.yticks(fontsize= 15)
-        plt.tick_params(direction='in')
+        plt.minorticks_on()
+        plt.tick_params(which="both", direction='in')
         plt.legend(fontsize= 15)
-        
-        #Ajustement de l'affichage, peut être changé si besoin
-        xmin, xmax = plt.xlim()
-        plt.xlim(xmin+100, xmax-100)
-        ymin, ymax = plt.ylim()
-        plt.ylim(ymin+2, ymax-2)
-        
+
         plt.show()
-        
-        #nouveau graphique avec les concentrations des échantillons à évaluer sur la droite de régression
-        plt.figure(figsize=(10, 6), dpi = 100)
-        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression", c = 'green', ls ='--', lw = 0.9)
-        
-        couleur = ['red', 'gold', 'fuchsia','silver', 'steelblue']
-        shape = ['v', 's', '^', '*', 'D']
+
+        # Nouveau graphique avec les concentrations des échantillons à évaluer sur la droite de régression
+        plt.figure(figsize=(16, 8), dpi = 100)
+        plt.plot(liste_y, linear_eq(liste_y, A, B), label="Droite de régression", c='red', ls='--', lw=1)
+
+        couleur = ['silver', "seagreen", 'steelblue']
+        shape = ['s', '^', 'D']
         i = 0
         dicto_conc = {}
         conc, pos = [], []
         for nom, couple in zip(Samples.echantillons.keys(), Samples.echantillons.values()):
             dicto_conc[nom] = linear_eq(couple[1], A, B)
             erreur = np.abs(0.5 * linear_eq(couple[1] + couple[3], A2, B2) - 0.5 * linear_eq(couple[1] - couple[3], A1, B1))
-            plt.errorbar(couple[1], linear_eq(couple[1], A, B), elinewidth=1.1, c=couleur[i], xerr=couple[3], yerr=erreur)
-            plt.scatter(couple[1], linewidths=(couple[1], A, B),s = 40, marker = shape[i], alpha = 1, c = couleur[i], label=f"Concentration de {nom}")
-            print(f"\n snr {nom}: {couple[1] / couple[3]:.2f} \n Concentration {nom}: {linear_eq(couple[1], A, B):.2f} ± {erreur:.2f}")
+            plt.errorbar(couple[1], linear_eq(couple[1], A, B), elinewidth=1, c=couleur[i], capsize=5, xerr=couple[3], yerr=erreur)
+            plt.scatter(couple[1], linear_eq(couple[1], A, B), s = 40, marker = shape[i], alpha = 1, c = couleur[i], label=f"Concentration de {nom}")
+            print(f"\n Signal to noise ratio {nom}: {couple[1] / couple[3]:.2f} \n Concentration {nom}: {linear_eq(couple[1], A, B):.2f} ± {erreur:.2f}")
             conc += [linear_eq(couple[1], A, B)]
             pos += [couple[1]]
             liste_emplacement.append(couple[2])
             i += 1
-        plt.xlabel(etiquette, fontsize= 17)
-        plt.ylabel("Concentration en sucre [%m/V]", fontsize= 17)
-        plt.xticks(fontsize= 17)
-        plt.yticks(fontsize= 17)
-        plt.tick_params(direction='in')
-        plt.legend(fontsize= 17)
-        
-        #Ajustement de l'affichage, peut être changé si besoin
-        # plt.xlim(100, 2400)
-        # plt.ylim(0, 10)
-        plt.xlim(1, np.max(pos)+300)
-        plt.ylim(0, np.max(conc)+1)
+        plt.xlabel(etiquette, fontsize= 15)
+        plt.ylabel("Concentration d'alcool [% V/V]", fontsize= 15)
+        plt.xticks(fontsize= 15)
+        plt.yticks(fontsize= 15)
+        plt.minorticks_on()
+        plt.tick_params(which="both", direction='in')
+        plt.legend(fontsize= 15)
         
         plt.show()
-        return dicto_conc
-    
-    def graphique_combiné_echantillon(self):
-        #méthode utilisisé pour faire des graphiques personnalisé pour le rapport de lab pas réellement utile pour l'analyse de donné
-        
-        i =0
-        colors = ['red', 'gold', 'silver', 'steelblue']
-        name = ["rouge", "jaune", "blanche", "bleu"]
-        fig, axs = plt.subplots(2, 2, figsize=(10, 6), dpi = 100, sharey=True, sharex=True)
-        
-        plt.rcParams.update({"font.size":15})
-        for couple in Samples.echantillons.values():
-            if i <2:
-                axs[0][i].plot(couple[4], couple[5], c=colors[i], label = f"Guru {name[i]}") 
-                axs[0][i].set_xlim(851, 1750)
-                axs[0][i].set_ylim(-1000, 2200)
-                axs[0][i].tick_params(direction="in", pad=3, labelsize=16)
-                axs[0][i].set_xticks([900, 1100, 1300, 1500, 1700])
-                axs[0][i].legend(loc = 'upper right')
-                i += 1
-            else:
-                axs[1][i-2].plot(couple[4], couple[5], c=colors[i], label = f"Guru {name[i]}")
-                axs[1][i-2].set_xlim(851, 1750)
-                axs[1][i-2].set_ylim(-1000, 2300)
-                axs[1][i-2].tick_params(direction="in", pad=3, labelsize=16)
-                axs[1][i-2].set_yticks([-700, 0, 700, 1400, 2100])
-                axs[1][i-2].legend(loc = 'upper right')
-                i += 1
-        plt.subplots_adjust(wspace = 0.02, hspace=0.04)
-        fig.supxlabel(t ="Décalage Raman [cm$^{-1}$]", y=0.02)
-        fig.supylabel(t = "Intensité [-]", x=0.06)
-        plt.show()
-    
-    def graphique_combiné_echantillon2(self):
-        i =0
-        colors = ['red', 'gold', 'fuchsia']
-        name = ["rouge", "jaune", "rose"]
-        fig, axes = plt.subplots(3, 1, figsize=(9,11), dpi = 100, sharex=True)
-        for couple in Samples.echantillons.values():
-            axes[i].plot(couple[4], couple[5], c=colors[i], label = f"Guru {name[i]}") 
-            axes[i].set_xlim(931, 1750)
-            axes[i].set_ylim(-1100, 2300)
-            axes[i].tick_params(direction="in", pad=3, labelsize=15)
-            axes[i].set_xticks([1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700])
-            axes[i].set_yticks([-700, 0, 700, 1400, 2100])
-            axes[i].legend()
-            i += 1
-        plt.xlabel("Décalage Raman [cm$^{-1}$]", fontsize = 15)
-        plt.subplots_adjust(hspace=0.04)
-        axes[1].set_ylabel("Intensité [-]", fontsize= 15)
-        plt.show()
+
+
+# ### Code à interpréter
+
+# In[1582]:
+
+
+eau = Calibration("Raman_GG\\12-04-2023\\Etalons\\Eau.TXT", "Eau", coupe = [1, -350], conc=0, zero=True)
+ethanol_30 = Calibration("Raman_GG\\12-04-2023\\Etalons\\Ethanol_30.TXT", "Éthanol à 30%", conc=30, domaine_pic = [550, 565], coupe = [1, -300], divismin = 2, max_c=714, max_p=600)
+ethanol_40 = Calibration("Raman_GG\\12-04-2023\\Etalons\\Ethanol_40.TXT", "Éthanol à 40%", conc=40, domaine_pic = [550, 565], coupe = [1, -300], divismin = 2, max_c=1207, max_p=600)
+ethanol_50 = Calibration("Raman_GG\\12-04-2023\\Etalons\\Ethanol_50.TXT", "Éthanol à 50%", conc=50, domaine_pic = [550, 565], coupe = [1, -300], divismin = 2, max_c=524, max_p=600)
+ethanol_60 = Calibration("Raman_GG\\12-04-2023\\Etalons\\Ethanol_60.TXT", "Éthanol à 60%", conc=60, domaine_pic = [550, 565], coupe = [1, -300], divismin = 2, max_c=1329, max_p=600)
+ethanol_70 = Calibration("Raman_GG\\12-04-2023\\Etalons\\Ethanol_70.TXT", "Éthanol à 70%", conc=70, domaine_pic = [550, 565], coupe = [1, -300], divismin = 2, max_c=1055, max_p=600)
+ethanol_80 = Calibration("Raman_GG\\12-04-2023\\Etalons\\Ethanol_80.TXT", "Éthanol à 80%", conc=80, domaine_pic = [550, 565], coupe = [1, -300], divismin = 2, max_c=1728, max_p=600)
+ethanol_100 = Calibration("Raman_GG\\12-04-2023\\Etalons\\Ethanol_100.TXT", "Éthanol à 100%", conc=100, domaine_pic = [550, 565], coupe = [1, -300], divismin = 2, max_c=400, max_p=600)
+Calibration.graphique_combine_ethanolage()
+
+Bombay = Samples("Raman_GG\\12-04-2023\\Spiritueux\\Bombay.TXT", "Bombay Sapphire", d=5, domaine_pic = [550, 565], coupe = [1, -300], max_c=2240, max_p=600)
+Disaronno = Samples("Raman_GG\\05-04-2023\\Alignement fluorescence\\Disaronno.TXT", "Disaronno", d=5, domaine_pic = [500, 600], coupe = [1, -300], max_c=50000, max_p=100000)
+Vodka = Samples("Raman_GG\\12-04-2023\\Spiritueux\\Vodka.TXT", "Vodka", d=5, domaine_pic = [550, 565], coupe = [1, -300], max_c=1727, max_p=600)
+Samples.analyse()
 
