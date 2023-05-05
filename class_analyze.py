@@ -15,7 +15,7 @@
 # ## Préliminaires
 # Cette section sert à <ins>importer</ins> les modules nécessaires et à <ins>créer des fonctions</ins> utiles pour l'entièté du PE.
 
-# In[94]:
+# In[166]:
 
 
 # !pip install --upgrade pip
@@ -26,7 +26,7 @@
 # !pip install opencv-python
 
 
-# In[95]:
+# In[167]:
 
 
 # -*- coding: utf-8 -*-
@@ -54,7 +54,7 @@ import os
 # ### Classe Calibration
 # En périphérie de la classe, nous définissons des fonctions de conversion qui seront utilisés à l'intérieur de la classe. 
 
-# In[96]:
+# In[168]:
 
 
 def nm2raman(x):
@@ -80,7 +80,7 @@ def raman2nm(x):
     return 632.8 / (1 - 632.8 * x * 1e-7)
 
 
-# In[97]:
+# In[169]:
 
 
 class Calibration:
@@ -430,7 +430,7 @@ class Calibration:
 # ### Classe Samples
 # Permet de prendre en compte l'échantillonage
 
-# In[98]:
+# In[170]:
 
 
 def linear_eq(x, slope, intercept):
@@ -447,7 +447,7 @@ def linear_eq(x, slope, intercept):
     return slope * x + intercept
 
 
-# In[99]:
+# In[171]:
 
 
 class Samples(Calibration):
@@ -549,6 +549,10 @@ class Samples(Calibration):
         plt.tick_params(which="both", direction='in')
         plt.legend(fontsize= 15)
 
+        if not os.path.exists("Resultats"):
+            os.makedirs("Resultats")
+        plt.savefig("{0}/{1}.png".format("Resultats", "Courbe_etalonnage"),
+            bbox_inches="tight", dpi=300)
         plt.show()
 
         # Nouveau graphique avec les concentrations des échantillons à évaluer sur la droite de régression
@@ -577,13 +581,15 @@ class Samples(Calibration):
         plt.minorticks_on()
         plt.tick_params(which="both", direction='in')
         plt.legend(fontsize= 15)
-        
+
+        plt.savefig("{0}/{1}.png".format("Resultats", "Droite_concentrations"),
+            bbox_inches="tight", dpi=300)
         plt.show()
 
 
 # ### Code à interpréter
 
-# In[101]:
+# In[172]:
 
 
 eau = Calibration("Raman_GG\\12-04-2023\\Etalons\\Eau.TXT", "Eau", coupe = [1, -350], conc=0, zero=True)
