@@ -15,7 +15,7 @@
 # ## Préliminaires
 # Cette section sert à <ins>importer</ins> les modules nécessaires et à <ins>créer des fonctions</ins> utiles pour l'entièté du PE.
 
-# In[1576]:
+# In[94]:
 
 
 # !pip install --upgrade pip
@@ -26,7 +26,7 @@
 # !pip install opencv-python
 
 
-# In[1577]:
+# In[95]:
 
 
 # -*- coding: utf-8 -*-
@@ -45,6 +45,8 @@ from sklearn.metrics import r2_score
 from scipy.signal import find_peaks
 # Le module interp1d interpole une fonction 1-D.
 from scipy.interpolate import interp1d
+# Le module OS fournit des fonctions pour manipuler un répertoire (dossier).
+import os
 
 
 # ## Classes d'étalonnage et de traitement des données
@@ -52,7 +54,7 @@ from scipy.interpolate import interp1d
 # ### Classe Calibration
 # En périphérie de la classe, nous définissons des fonctions de conversion qui seront utilisés à l'intérieur de la classe. 
 
-# In[1578]:
+# In[96]:
 
 
 def nm2raman(x):
@@ -78,7 +80,7 @@ def raman2nm(x):
     return 632.8 / (1 - 632.8 * x * 1e-7)
 
 
-# In[1579]:
+# In[97]:
 
 
 class Calibration:
@@ -159,11 +161,18 @@ class Calibration:
 
         # Affiche le spectre sans modification si voulu.
         if rawdog:
+            plt.figure(figsize=(16, 8))
             plt.plot(self.raw_x[self.cut - self.d:self.cut2+self.d][::-1], self.y_corrige_eau[-self.cut2-self.d:self.d - self.cut])
-            plt.xlabel("Décalage Raman [cm"'$^{-1}$'"]", fontsize= 12)
-            plt.ylabel("Intensité [-]", fontsize= 12)
-            plt.xticks(fontsize= 12)
-            plt.yticks(fontsize= 12)
+            plt.xlabel("Décalage Raman [cm"'$^{-1}$'"]", fontsize= 15)
+            plt.ylabel("Intensité [-]", fontsize= 15)
+            plt.xticks(fontsize= 15)
+            plt.yticks(fontsize= 15)
+            plt.minorticks_on()
+            plt.tick_params(which="both", direction="in")
+            if not os.path.exists("Rawdogs"):
+                os.makedirs("Rawdogs")
+            plt.savefig("{0}/{1}.png".format("Rawdogs", nom),
+            bbox_inches="tight", dpi=300)
             plt.show()
 
         if zero: self.ethanol[self.nom] = [0, 0, 0, 50, 0, 0, [0, 1]] 
@@ -376,7 +385,7 @@ class Calibration:
         """
         colors = ["red", "lightgrey", "gainsboro", "silver", "darkgrey", "slategrey", "grey", "dimgrey", "black"]
         concentrations = [0, 30, 40, 50, 60, 70, 80, 100]  # Entrer manuellement les valeurs de concentration où 0% est de l'eau
-        plt.figure(figsize=(16, 8), dpi = 100)
+        plt.figure(figsize=(16, 8))
         plt.rcParams.update({"font.size":14})
 
         for i, couple in enumerate(cls.ethanol.values()):
@@ -385,7 +394,7 @@ class Calibration:
             else:
                 plt.plot(couple[4], couple[5], c=colors[i], label=f"{concentrations[i]} % V/V")
 
-        plt.legend(fontsize=14)
+        plt.legend(fontsize=15)
         plt.xlim(200, 1550)
         plt.minorticks_on()
         plt.tick_params(which="both", direction="in")
@@ -397,8 +406,8 @@ class Calibration:
         plt.axvline(982, c="blue", linewidth=0.8)
         plt.axvline(1137, c="blue", linewidth=0.8)
         plt.axvline(1505, c="blue", linewidth=0.8)
-        plt.xlabel("Décalage Raman [cm$^{-1}$]")
-        plt.ylabel("Intensité [-]")
+        plt.xlabel("Décalage Raman [cm$^{-1}$]", fontsize=15)
+        plt.ylabel("Intensité [-]", fontsize=15)
 
         plt.twiny()
         plt.xticks(ticks=[559, 754, 942, 982, 1137, 1505])
@@ -409,15 +418,19 @@ class Calibration:
         xticks[2] += -20  # Distancer les graduations trop collé
         xticks[3] += 20
         ax.set_xticks(xticks)
-        ax.set_xticklabels([559, 754, 942, 982, 1137, 1505], fontsize=14)
+        ax.set_xticklabels([559, 754, 942, 982, 1137, 1505], fontsize=15)
 
+        if not os.path.exists("Resultats"):
+            os.makedirs("Resultats")
+        plt.savefig("{0}/{1}.png".format("Resultats", "Spectres_etanol"),
+            bbox_inches="tight", dpi=300)
         plt.show()
 
 
 # ### Classe Samples
 # Permet de prendre en compte l'échantillonage
 
-# In[1580]:
+# In[98]:
 
 
 def linear_eq(x, slope, intercept):
@@ -434,7 +447,7 @@ def linear_eq(x, slope, intercept):
     return slope * x + intercept
 
 
-# In[1581]:
+# In[99]:
 
 
 class Samples(Calibration):
@@ -570,7 +583,7 @@ class Samples(Calibration):
 
 # ### Code à interpréter
 
-# In[1582]:
+# In[101]:
 
 
 eau = Calibration("Raman_GG\\12-04-2023\\Etalons\\Eau.TXT", "Eau", coupe = [1, -350], conc=0, zero=True)
